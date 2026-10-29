@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-ios: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+    /* Rose Brand & iOS Dark Palette */
+    --brand-rose: #e11d48;
+    --brand-rose-light: #fb7185;
+    --brand-rose-dark: #9f1239;
+    --ios-bg: #070204;
+  }
+
+  body {
+    font-family: var(--font-ios);
+    background-color: #070204;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(225, 29, 72, 0.12) 0px, transparent 45%),
+      radial-gradient(at 100% 100%, rgba(190, 18, 60, 0.1) 0px, transparent 45%);
+    background-attachment: fixed;
+    color: #fdf2f8;
+    min-height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Apple iOS Glass Navigation & Bars */
+.ios-glass {
+  background: rgba(22, 7, 13, 0.82);
+  border-color: rgba(251, 113, 133, 0.18);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  backdrop-filter: blur(28px) saturate(190%);
+}
+
+.ios-card {
+  background: rgba(20, 6, 12, 0.72);
+  border: 0.5px solid rgba(244, 63, 94, 0.22);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+.ios-input {
+  background: rgba(36, 11, 21, 0.65);
+  border: 0.5px solid rgba(244, 63, 94, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ios-input:focus {
+  border-color: #fb7185;
+  background: rgba(46, 14, 27, 0.85);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.18);
+}
+
+.ios-button {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+}
+.ios-button:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* Hide scrollbars cleanly */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

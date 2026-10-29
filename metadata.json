@@ -1,0 +1,6 @@
+{
+  "name": "The Hub - Rencontre Discord",
+  "description": "L'application de rencontre officielle tirée du Discord The Hub. Swipe, profil 100% sécurisé sans email, et messagerie chiffrée FireBall Secure.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
