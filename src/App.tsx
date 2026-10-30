@@ -4,19 +4,28 @@ import {
   MessageCircle, 
   User, 
   Lock,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { UserProfile, DatingProfile, Conversation, Message } from './types';
-import { INITIAL_PROFILES } from './data/profiles';
 import { DiscordHeader } from './components/DiscordHeader';
 import { OnboardingView } from './components/OnboardingView';
 import { SwipeDeck } from './components/SwipeDeck';
 import { FireBallSecureChat } from './components/FireBallSecureChat';
 import { UserProfileView } from './components/UserProfileView';
-import { generateKeyId, encryptFireBall } from './utils/fireballSecure';
+import { generateKeyId } from './utils/fireballSecure';
+import { 
+  initAuth,
+  saveUserProfileToFirestore,
+  subscribeToProfiles,
+  subscribeToUserConversations,
+  subscribeToMessages,
+  sendFirestoreMessage,
+  createOrGetConversation,
+  recordSwipe
+} from './firebase';
 
 const STORAGE_USER_KEY = 'thehub_user_profile_v1';
-const STORAGE_CONVS_KEY = 'thehub_conversations_v1';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -29,138 +38,117 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<'swipe' | 'chat' | 'profile'>('swipe');
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_CONVS_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [profiles, setProfiles] = useState<DatingProfile[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeMessages, setActiveMessages] = useState<Message[]>([]);
 
-  // Sync to local storage
+  // Init anonymous Firebase auth on startup
+  useEffect(() => {
+    initAuth();
+  }, []);
+
+  // Sync user profile to localStorage and ensure it is saved in Firestore
   useEffect(() => {
     if (user) {
       localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+      saveUserProfileToFirestore(user).catch((err) => {
+        console.warn('Could not sync user to Firestore:', err);
+      });
     } else {
       localStorage.removeItem(STORAGE_USER_KEY);
     }
   }, [user]);
 
+  // Subscribe to all profiles in Firestore in real-time
   useEffect(() => {
-    localStorage.setItem(STORAGE_CONVS_KEY, JSON.stringify(conversations));
-  }, [conversations]);
+    if (!user) return;
+    const unsubscribe = subscribeToProfiles(user.id, (loadedProfiles) => {
+      setProfiles(loadedProfiles);
+    });
+    return () => unsubscribe();
+  }, [user?.id]);
 
-  const handleOnboardingComplete = (newProfile: UserProfile) => {
+  // Subscribe to real-time conversations in Firestore
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeToUserConversations(user.id, (loadedConvs) => {
+      setConversations(loadedConvs);
+    });
+    return () => unsubscribe();
+  }, [user?.id]);
+
+  // Subscribe to real-time messages for the active conversation
+  useEffect(() => {
+    if (!activeConversationId) {
+      setActiveMessages([]);
+      return;
+    }
+    const currentConv = conversations.find((c) => c.id === activeConversationId);
+    const keyId = currentConv?.encryptionKeyId || 'FB-AES256-DEFAULT';
+
+    const unsubscribe = subscribeToMessages(activeConversationId, keyId, (msgs) => {
+      setActiveMessages(msgs);
+    });
+    return () => unsubscribe();
+  }, [activeConversationId, conversations]);
+
+  // Onboarding Complete
+  const handleOnboardingComplete = async (newProfile: UserProfile) => {
     setUser(newProfile);
+    try {
+      await saveUserProfileToFirestore(newProfile);
+    } catch (e) {
+      console.warn('Saved locally, firestore pending:', e);
+    }
     setActiveTab('swipe');
   };
 
-  const handleStartChat = (profile: DatingProfile) => {
-    let conv = conversations.find((c) => c.participant.id === profile.id);
-    
-    if (!conv) {
-      const newKeyId = generateKeyId();
-      conv = {
-        id: 'conv-' + profile.id,
-        participant: profile,
-        unreadCount: 0,
-        encryptionKeyId: newKeyId,
-        moderationActive: user?.ageCategory === '13-15' && profile.ageCategory === '16+'
-      };
-      setConversations((prev) => [conv!, ...prev]);
-    }
-
-    setActiveConversationId(conv.id);
+  // Start chat with a profile
+  const handleStartChat = async (profile: DatingProfile) => {
+    if (!user) return;
+    const keyId = generateKeyId();
+    const convId = await createOrGetConversation(user, profile, keyId);
+    setActiveConversationId(convId);
     setActiveTab('chat');
   };
 
-  const handleSendMessage = (conversationId: string, text: string) => {
+  // Send message with FireBall Secure to Firestore
+  const handleSendMessage = async (conversationId: string, text: string) => {
     const conv = conversations.find((c) => c.id === conversationId);
     if (!conv || !user) return;
 
-    const keyId = conv.encryptionKeyId;
-    const { cipherText } = encryptFireBall(text, keyId);
-
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    const newMsg: Message = {
-      id: 'msg-' + Date.now(),
-      conversationId,
-      senderId: user.id,
-      senderName: user.pseudo,
-      text,
-      cipherText,
-      timestamp: timeStr,
-      encryptedWith: 'FireBall-AES256-GCM',
-      status: 'sent'
-    };
-
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === conversationId) {
-          return {
-            ...c,
-            lastMessage: newMsg,
-            unreadCount: 0
-          };
-        }
-        return c;
-      })
-    );
-
-    // Simulated match response
-    setTimeout(() => {
-      simulateMatchReply(conversationId, conv.participant);
-    }, 1400);
+    try {
+      await sendFirestoreMessage(conversationId, user, text, conv.encryptionKeyId);
+    } catch (err) {
+      console.error('Error sending message:', err);
+    }
   };
 
-  const simulateMatchReply = (conversationId: string, participant: DatingProfile) => {
-    const replies = [
-      `Trop cool ! Viens on vocal sur The Hub ce soir ! 🌸`,
-      `Yes ! Ajoute mon tag Discord qu'on joue ensemble ✨`,
-      `Haha j'adore ton profil ! À très vite sur le serv 🔥`
-    ];
-    const replyText = replies[Math.floor(Math.random() * replies.length)];
-    const conv = conversations.find((c) => c.id === conversationId);
-    const keyId = conv?.encryptionKeyId || 'FB-DEFAULT';
-    const { cipherText } = encryptFireBall(replyText, keyId);
-
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    const replyMsg: Message = {
-      id: 'msg-' + Date.now(),
-      conversationId,
-      senderId: participant.id,
-      senderName: participant.pseudo,
-      text: replyText,
-      cipherText,
-      timestamp: timeStr,
-      encryptedWith: 'FireBall-AES256-GCM',
-      status: 'delivered'
-    };
-
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === conversationId) {
-          return {
-            ...c,
-            lastMessage: replyMsg,
-            unreadCount: activeConversationId === conversationId ? 0 : c.unreadCount + 1
-          };
-        }
-        return c;
-      })
-    );
+  // Record swipe in Firestore
+  const handleSwipe = async (
+    targetProfile: DatingProfile,
+    direction: 'like' | 'pass' | 'superlike'
+  ): Promise<boolean> => {
+    if (!user) return false;
+    const isMatch = await recordSwipe(user.id, targetProfile.id, direction);
+    if (isMatch) {
+      // Create conversation automatically on match!
+      const keyId = generateKeyId();
+      await createOrGetConversation(user, targetProfile, keyId);
+    }
+    return isMatch;
   };
 
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
 
-  const handleUpdateUserSettings = (updated: Partial<UserProfile>) => {
-    setUser((prev) => (prev ? { ...prev, ...updated } : null));
+  const handleUpdateUserSettings = async (updated: Partial<UserProfile>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const merged = { ...prev, ...updated };
+      saveUserProfileToFirestore(merged).catch(console.warn);
+      return merged;
+    });
   };
 
   const handleResetProfile = () => {
@@ -169,7 +157,6 @@ export default function App() {
       setConversations([]);
       setActiveConversationId(null);
       localStorage.removeItem(STORAGE_USER_KEY);
-      localStorage.removeItem(STORAGE_CONVS_KEY);
     }
   };
 
@@ -192,9 +179,10 @@ export default function App() {
             {activeTab === 'swipe' && (
               <SwipeDeck
                 user={user}
-                profiles={INITIAL_PROFILES}
+                profiles={profiles}
                 onStartChat={handleStartChat}
                 onUpdateUserSettings={handleUpdateUserSettings}
+                onSwipe={handleSwipe}
               />
             )}
 
@@ -203,6 +191,7 @@ export default function App() {
                 user={user}
                 conversations={conversations}
                 activeConversationId={activeConversationId}
+                messages={activeMessages}
                 onSelectConversation={setActiveConversationId}
                 onSendMessage={handleSendMessage}
                 onBackToDeck={() => setActiveTab('swipe')}

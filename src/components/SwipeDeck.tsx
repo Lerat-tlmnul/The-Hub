@@ -28,13 +28,15 @@ interface SwipeDeckProps {
   profiles: DatingProfile[];
   onStartChat: (profile: DatingProfile) => void;
   onUpdateUserSettings: (updated: Partial<UserProfile>) => void;
+  onSwipe?: (profile: DatingProfile, direction: 'like' | 'pass' | 'superlike') => Promise<boolean>;
 }
 
 export const SwipeDeck: React.FC<SwipeDeckProps> = ({
   user,
   profiles,
   onStartChat,
-  onUpdateUserSettings
+  onUpdateUserSettings,
+  onSwipe
 }) => {
   // Search older toggle state
   const [allowOlderSearch, setAllowOlderSearch] = useState(user.searchOlderAllowed);
@@ -90,14 +92,14 @@ export const SwipeDeck: React.FC<SwipeDeckProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, currentProfile, activeProfileForModal, matchedProfile]);
 
-  const handleSwipe = (direction: 'left' | 'right' | 'up') => {
+  const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
     if (!currentProfile) return;
 
     setSwipeDirection(direction);
 
-    // If right or up, 60% chance of an exciting instant match!
-    if (direction === 'right' || direction === 'up') {
-      const isMatch = Math.random() > 0.35 || direction === 'up';
+    const dirType = direction === 'left' ? 'pass' : direction === 'up' ? 'superlike' : 'like';
+    if (onSwipe) {
+      const isMatch = await onSwipe(currentProfile, dirType);
       if (isMatch) {
         setTimeout(() => {
           triggerMatchCelebration(currentProfile);

@@ -24,6 +24,7 @@ interface FireBallSecureChatProps {
   user: UserProfile;
   conversations: Conversation[];
   activeConversationId: string | null;
+  messages: Message[];
   onSelectConversation: (id: string) => void;
   onSendMessage: (conversationId: string, text: string) => void;
   onBackToDeck: () => void;
@@ -33,6 +34,7 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
   user,
   conversations,
   activeConversationId,
+  messages,
   onSelectConversation,
   onSendMessage,
   onBackToDeck
@@ -49,7 +51,7 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
   // Auto-scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeConv?.lastMessage]);
+  }, [messages.length, activeConv?.lastMessage]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,70 +289,73 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
             </div>
 
             {/* Conversation Messages */}
-            {activeConv.lastMessage ? (
-              <div className="space-y-3">
-                {/* Simulated initial message if present */}
-                <div className="flex items-end gap-2 justify-start">
-                  <div className="w-7 h-7 rounded-full overflow-hidden border border-rose-400 shrink-0 mb-1">
-                    <img
-                      src={activeConv.participant.photoUrl}
-                      alt={activeConv.participant.pseudo}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="max-w-[75%] rounded-2xl rounded-bl-xs px-3.5 py-2.5 bg-rose-900/60 border border-rose-700/50 text-white text-xs space-y-1 shadow-sm">
-                    <div className="flex items-center justify-between gap-3 text-[10px] text-rose-300 font-medium">
-                      <span>{activeConv.participant.pseudo}</span>
-                      <span className="flex items-center gap-1">
-                        <Lock className="w-2.5 h-2.5 text-emerald-400" />
-                        <span>Chiffré</span>
-                      </span>
-                    </div>
-
-                    <p className="leading-relaxed">
-                      Hey ! Trop cool qu'on ait matché sur The Hub ! Tu es actif sur quel salon du Discord ? 🌸
-                    </p>
-
-                    {inspectCipher && (
-                      <div className="mt-1 pt-1 border-t border-rose-800 text-[9px] font-mono text-emerald-300/80 break-all">
-                        {encryptFireBall("Hey ! Trop cool qu'on ait matché sur The Hub !", activeConv.encryptionKeyId).cipherText}
-                      </div>
-                    )}
-                  </div>
+            <div className="space-y-3">
+              {messages.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-xs text-rose-300/80">
+                    C'est le début de votre discussion chiffrée avec {activeConv.participant.pseudo}.
+                  </p>
+                  <p className="text-[11px] text-rose-400/60 mt-1">
+                    Envoie le premier message sécurisé !
+                  </p>
                 </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.senderId === user.id;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {!isMe && (
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-rose-400 shrink-0 mb-1">
+                          <img
+                            src={activeConv.participant.photoUrl}
+                            alt={activeConv.participant.pseudo}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
 
-                {/* Sent message */}
-                <div className="flex items-end gap-2 justify-end">
-                  <div className="max-w-[75%] rounded-2xl rounded-br-xs px-3.5 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 text-white text-xs space-y-1 shadow-md shadow-rose-950/60">
-                    <div className="flex items-center justify-between gap-3 text-[10px] text-rose-200">
-                      <span>Toi</span>
-                      <span className="flex items-center gap-1">
-                        <Lock className="w-2.5 h-2.5 text-rose-100" />
-                        <span>FireBall-256</span>
-                      </span>
-                    </div>
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-xs space-y-1 shadow-md ${
+                          isMe
+                            ? 'rounded-br-xs bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-rose-950/60'
+                            : 'rounded-bl-xs bg-rose-900/60 border border-rose-700/50 text-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3 text-[10px] text-rose-200">
+                          <span className="font-semibold">{isMe ? 'Toi' : activeConv.participant.pseudo}</span>
+                          <span className="flex items-center gap-1 opacity-80">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>AES-256</span>
+                          </span>
+                        </div>
 
-                    <p className="leading-relaxed">
-                      {activeConv.lastMessage.text}
-                    </p>
+                        <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
 
-                    {inspectCipher && (
-                      <div className="mt-1 pt-1 border-t border-rose-400/40 text-[9px] font-mono text-rose-100/80 break-all">
-                        {activeConv.lastMessage.cipherText}
+                        {inspectCipher && msg.cipherText && (
+                          <div className="mt-1 pt-1 border-t border-rose-400/30 text-[9px] font-mono text-rose-100/80 break-all">
+                            {msg.cipherText}
+                          </div>
+                        )}
+
+                        <div className={`flex items-center justify-end gap-1 text-[9px] pt-0.5 ${isMe ? 'text-rose-200/90' : 'text-rose-400/80'}`}>
+                          <span>{msg.timestamp}</span>
+                          {isMe && <CheckCheck className="w-3 h-3" />}
+                        </div>
                       </div>
-                    )}
 
-                    <div className="flex items-center justify-end gap-1 text-[9px] text-rose-200/90 pt-0.5">
-                      <span>{activeConv.lastMessage.timestamp}</span>
-                      <CheckCheck className="w-3 h-3 text-rose-200" />
+                      {isMe && (
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-rose-400 shrink-0 mb-1">
+                          <img src={user.photoUrl} alt={user.pseudo} className="w-full h-full object-cover" />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="w-7 h-7 rounded-full overflow-hidden border border-rose-400 shrink-0 mb-1">
-                    <img src={user.photoUrl} alt={user.pseudo} className="w-full h-full object-cover" />
-                  </div>
-                </div>
-              </div>
-            ) : null}
+                  );
+                })
+              )}
+            </div>
 
             <div ref={messagesEndRef} />
           </div>

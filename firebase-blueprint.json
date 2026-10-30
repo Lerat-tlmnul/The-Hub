@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Profil utilisateur The Hub avec vérification d'âge et Discord",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "pseudo": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "age": { "type": "number" },
+        "birthDate": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "enum": ["Femme", "Homme", "Non-binaire", "Autre"] },
+        "bio": { "type": "string", "maxLength": 500 },
+        "photoUrl": { "type": "string", "maxLength": 2048 },
+        "discordTag": { "type": "string", "maxLength": 60 },
+        "interests": { "type": "array" },
+        "ageCategory": { "type": "string", "enum": ["13-15", "16+"] },
+        "verifiedAge": { "type": "boolean" },
+        "searchOlderAllowed": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "pseudo", "age", "gender", "ageCategory", "photoUrl"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Session de messagerie chiffrée FireBall Secure entre deux membres",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "participantIds": { "type": "array" },
+        "encryptionKeyId": { "type": "string", "maxLength": 64 },
+        "lastMessageText": { "type": "string", "maxLength": 1000 },
+        "lastMessageTimestamp": { "type": "string", "maxLength": 32 },
+        "moderationActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "participantIds", "encryptionKeyId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Message privé chiffré de bout en bout",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "conversationId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 64 },
+        "text": { "type": "string", "maxLength": 2000 },
+        "cipherText": { "type": "string", "maxLength": 4000 },
+        "encryptedWith": { "type": "string", "maxLength": 64 },
+        "timestamp": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "conversationId", "senderId", "text", "cipherText"]
+    },
+    "Swipe": {
+      "title": "Swipe",
+      "description": "Action de swipe entre deux profils pour créer des matches",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "targetUserId": { "type": "string", "maxLength": 128 },
+        "direction": { "type": "string", "enum": ["like", "pass", "superlike"] },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userId", "targetUserId", "direction"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Comptes et profils publics des membres de The Hub"
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Conversations privées chiffrées"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages chiffrés en temps réel avec FireBall Secure"
+    },
+    "/swipes/{swipeId}": {
+      "schema": { "$ref": "#/entities/Swipe" },
+      "description": "Historique des swipes pour calculer les matches"
+    }
+  }
+}

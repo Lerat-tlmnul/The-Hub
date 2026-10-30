@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection: All members can discover profiles for swiping; users create/update their own profile
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if userId is string && userId.size() <= 128;
+      allow delete: if false;
+    }
+
+    // Conversations: Private chat sessions
+    match /conversations/{conversationId} {
+      allow read, create, update: if conversationId is string && conversationId.size() <= 128;
+      allow delete: if false;
+
+      // Messages: Encrypted messages
+      match /messages/{messageId} {
+        allow read, create: if messageId is string && messageId.size() <= 128;
+        allow update, delete: if false;
+      }
+    }
+
+    // Swipes: User swipes to generate matches
+    match /swipes/{swipeId} {
+      allow read, create, update: if swipeId is string && swipeId.size() <= 128;
+      allow delete: if false;
+    }
+  }
+}
