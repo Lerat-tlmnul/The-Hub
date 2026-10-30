@@ -105,12 +105,37 @@ export default function App() {
   };
 
   // Start chat with a profile
-  const handleStartChat = async (profile: DatingProfile) => {
+  const handleStartChat = async (profile: DatingProfile, initialText?: string) => {
     if (!user) return;
+    const sorted = [user.id, profile.id].sort();
+    const convId = `conv_${sorted[0]}_${sorted[1]}`;
     const keyId = generateKeyId();
-    const convId = await createOrGetConversation(user, profile, keyId);
+
+    // Optimistically update conversations so chat view is active immediately
+    setConversations((prev) => {
+      const exists = prev.find((c) => c.id === convId);
+      if (exists) return prev;
+      const optimisticConv: Conversation = {
+        id: convId,
+        participant: profile,
+        unreadCount: 0,
+        encryptionKeyId: keyId,
+        moderationActive: user.ageCategory === '13-15' && profile.ageCategory === '16+',
+      };
+      return [optimisticConv, ...prev];
+    });
+
     setActiveConversationId(convId);
     setActiveTab('chat');
+
+    try {
+      await createOrGetConversation(user, profile, keyId);
+      if (initialText && initialText.trim()) {
+        await sendFirestoreMessage(convId, user, initialText.trim(), keyId);
+      }
+    } catch (err) {
+      console.error('Error starting conversation:', err);
+    }
   };
 
   // Send message with FireBall Secure to Firestore
@@ -189,11 +214,13 @@ export default function App() {
             {activeTab === 'chat' && (
               <FireBallSecureChat
                 user={user}
+                profiles={profiles}
                 conversations={conversations}
                 activeConversationId={activeConversationId}
                 messages={activeMessages}
                 onSelectConversation={setActiveConversationId}
                 onSendMessage={handleSendMessage}
+                onStartChat={handleStartChat}
                 onBackToDeck={() => setActiveTab('swipe')}
               />
             )}

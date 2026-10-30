@@ -14,29 +14,36 @@ import {
   ExternalLink,
   ShieldAlert,
   Sparkles,
-  Info
+  Info,
+  X,
+  MessageCircle
 } from 'lucide-react';
 import { DatingProfile, UserProfile, Message, Conversation } from '../types';
 import { encryptFireBall, decryptFireBall, generateKeyId } from '../utils/fireballSecure';
 import { DISCORD_INVITE_URL } from './DiscordHeader';
+import { DISCORD_HUB_MEMBERS } from '../data/profiles';
 
 interface FireBallSecureChatProps {
   user: UserProfile;
+  profiles: DatingProfile[];
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Message[];
   onSelectConversation: (id: string) => void;
   onSendMessage: (conversationId: string, text: string) => void;
+  onStartChat: (profile: DatingProfile, initialText?: string) => void;
   onBackToDeck: () => void;
 }
 
 export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
   user,
+  profiles,
   conversations,
   activeConversationId,
   messages,
   onSelectConversation,
   onSendMessage,
+  onStartChat,
   onBackToDeck
 }) => {
   const [inputText, setInputText] = useState('');
@@ -44,6 +51,8 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
   const [copiedDiscord, setCopiedDiscord] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [customPseudo, setCustomPseudo] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
@@ -79,18 +88,26 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <Flame className="w-5 h-5 text-rose-500" />
-                <h2 className="text-xl font-black text-white">Messagerie FireBall Secure</h2>
+                <h2 className="text-xl font-black text-white">Messagerie FireBall</h2>
               </div>
               <p className="text-xs text-rose-300/80 mt-0.5">
-                Tous les MP sont chiffrés en temps réel avec AES-256 de bout en bout.
+                MP chiffrés en temps réel avec AES-256 de bout en bout.
               </p>
             </div>
-            <button
-              onClick={onBackToDeck}
-              className="text-xs font-bold text-rose-300 hover:text-white px-3 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800/80 cursor-pointer"
-            >
-              Retour au Swipe
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNewChatModal(true)}
+                className="ios-button text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-600 px-3 py-1.5 rounded-xl shadow-sm cursor-pointer flex items-center gap-1"
+              >
+                <span>+ Nouveau MP</span>
+              </button>
+              <button
+                onClick={onBackToDeck}
+                className="ios-button text-xs font-semibold text-rose-300 hover:text-white px-2.5 py-1.5 rounded-xl bg-rose-950/80 border border-rose-800/80 cursor-pointer"
+              >
+                Swipe
+              </button>
+            </div>
           </div>
 
           {/* Conversations Roster */}
@@ -103,15 +120,23 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-white">Aucun MP pour le moment</h3>
                   <p className="text-xs text-rose-300/80 max-w-xs mt-1">
-                    Swipe des profils et clique sur le bouton "MP Chiffré" ou attends un match pour démarrer une conversation sécurisée.
+                    Envoie un premier MP chiffré à un profil ou choisis un membre du Discord The Hub !
                   </p>
                 </div>
-                <button
-                  onClick={onBackToDeck}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 text-white font-bold text-xs shadow-md shadow-rose-900/40 cursor-pointer"
-                >
-                  Découvrir des profils
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowNewChatModal(true)}
+                    className="ios-button px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 text-white font-bold text-xs shadow-md shadow-rose-900/40 cursor-pointer"
+                  >
+                    Envoyer un MP à un profil
+                  </button>
+                  <button
+                    onClick={onBackToDeck}
+                    className="ios-button px-3.5 py-2.5 rounded-xl bg-rose-950 border border-rose-800 text-rose-300 text-xs font-semibold cursor-pointer"
+                  >
+                    Aller au Swipe
+                  </button>
+                </div>
               </div>
             ) : (
               conversations.map((conv) => (
@@ -448,6 +473,111 @@ export const FireBallSecureChat: React.FC<FireBallSecureChatProps> = ({
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* NEW MP / CHOOSE PROFILE MODAL */}
+      {showNewChatModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm ios-card rounded-3xl p-5 space-y-4 border border-rose-500/40 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-2 border-b border-rose-900/50 shrink-0">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-rose-400" />
+                <h4 className="font-extrabold text-white text-sm">
+                  Nouveau message privé (MP)
+                </h4>
+              </div>
+              <button
+                onClick={() => {
+                  setShowNewChatModal(false);
+                  setCustomPseudo('');
+                }}
+                className="p-1 rounded-full text-rose-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto no-scrollbar space-y-3 flex-1 text-xs">
+              <p className="text-[11px] text-rose-300/80">
+                Sélectionne un profil pour lancer une conversation chiffrée par FireBall Secure :
+              </p>
+
+              {/* Profiles list */}
+              <div className="space-y-1.5">
+                {[
+                  ...DISCORD_HUB_MEMBERS,
+                  ...profiles.filter((p) => !DISCORD_HUB_MEMBERS.some((m) => m.id === p.id) && p.id !== user.id)
+                ].map((target) => (
+                  <button
+                    key={target.id}
+                    onClick={() => {
+                      setShowNewChatModal(false);
+                      onStartChat(target);
+                    }}
+                    className="w-full p-2.5 rounded-2xl bg-rose-950/70 hover:bg-rose-900/60 border border-rose-800/60 flex items-center gap-2.5 text-left transition-all cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-full overflow-hidden border border-rose-400/60 shrink-0">
+                      <img src={target.photoUrl} alt={target.pseudo} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white group-hover:text-rose-200 truncate">
+                          {target.pseudo}
+                        </span>
+                        <span className="text-[10px] text-rose-300 font-semibold">{target.age} ans</span>
+                      </div>
+                      <span className="text-[10px] text-rose-400/80 block truncate">
+                        {target.discordTag || target.bio || 'Membre The Hub'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Enter custom Discord tag or pseudo */}
+              <div className="pt-2 border-t border-rose-900/60 space-y-2">
+                <span className="block font-bold text-rose-200 text-[11px]">
+                  Ou écrire à un autre pseudo :
+                </span>
+                <input
+                  type="text"
+                  placeholder="Ex: Clara, Maxime#4412..."
+                  value={customPseudo}
+                  onChange={(e) => setCustomPseudo(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl ios-input text-white text-xs placeholder-rose-400/40"
+                />
+                <button
+                  disabled={!customPseudo.trim()}
+                  onClick={() => {
+                    if (!customPseudo.trim()) return;
+                    const clean = customPseudo.trim();
+                    const syntheticProfile: DatingProfile = {
+                      id: `member_${clean.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                      pseudo: clean,
+                      age: user.ageCategory === '13-15' ? 14 : 19,
+                      ageCategory: user.ageCategory,
+                      gender: 'Autre',
+                      bio: `Membre du Discord The Hub (${clean})`,
+                      photoUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80`,
+                      discordTag: clean.includes('#') ? clean : `@${clean}`,
+                      location: 'Discord The Hub',
+                      interests: ['Discord', 'FireBall Secure'],
+                      verified: true,
+                      distanceKm: 0,
+                    };
+                    setShowNewChatModal(false);
+                    setCustomPseudo('');
+                    onStartChat(syntheticProfile);
+                  }}
+                  className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Démarrer le MP chiffré</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
